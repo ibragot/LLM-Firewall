@@ -66,7 +66,7 @@ def main() -> None:
     y = tune["label"].to_numpy()
     layer_scores = [fw.scan_input(t).scores for t in tune["text"]]
 
-    results: dict[str, object] = {"validation_rows": len(val), "redteam_dev_rows": len(dev), "strategies": {}}
+    strategies: dict[str, dict[str, dict[str, float]]] = {}
     for strategy in ("noisy_or", "max", "weighted_mean"):
         pol = Policy.from_dict({"input": {"combination": strategy,
                                           "weights": {"heuristics": 1.0, "linear": 0.4, "transformer": 0.6}}})
@@ -76,13 +76,14 @@ def main() -> None:
         block = max(block_cands, key=lambda r: (r["f1"], -r["threshold"]))
         log_cands = [r for r in rows if r["fpr"] <= 0.10] or rows
         log = max(log_cands, key=lambda r: (r["recall"], r["threshold"]))
-        results["strategies"][strategy] = {"block": block, "log": log}  # type: ignore[index]
+        strategies[strategy] = {"block": block, "log": log}
         print(f"{strategy:<14} block@{block['threshold']:.2f}: F1={block['f1']:.3f} P={block['precision']:.3f} "
               f"R={block['recall']:.3f} FPR={block['fpr']:.3f} | log@{log['threshold']:.2f}: R={log['recall']:.3f} FPR={log['fpr']:.3f}")
 
-    best = max(results["strategies"].items(), key=lambda kv: kv[1]["block"]["f1"])  # type: ignore[union-attr]
-    results["chosen"] = {"combination": best[0], "block": best[1]["block"]["threshold"], "log": best[1]["log"]["threshold"]}
-    print("chosen:", results["chosen"])
+    best_name, best = max(strategies.items(), key=lambda kv: kv[1]["block"]["f1"])
+    chosen = {"combination": best_name, "block": best["block"]["threshold"], "log": best["log"]["threshold"]}
+    print("chosen:", chosen)
+    results = {"validation_rows": len(val), "redteam_dev_rows": len(dev), "strategies": strategies, "chosen": chosen}
     out = Path(ROOT / "models" / "policy_tuning.json")
     out.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"wrote {out}")

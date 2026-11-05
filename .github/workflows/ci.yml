@@ -22,7 +22,7 @@ jobs:
       - name: Ruff (lint)
         run: ruff check .
       - name: Mypy (types)
-        run: mypy llm_firewall training
+        run: mypy llm_firewall training eval
 
   test:
     runs-on: ubuntu-latest
@@ -68,7 +68,8 @@ jobs:
       - name: Train tiny model (smoke test)
         run: python -m training.train_transformer --smoke
       - name: Evaluate with Layer C loaded
-        run: python -m eval.run_eval --quick --transformer-dir models/transformer-smoke --out /tmp/smoke-eval.json
+        # The smoke model is tiny and random, so only check that the pipeline runs with Layer C loaded.
+        run: python -m eval.run_eval --quick --no-gates --transformer-dir models/transformer-smoke --out /tmp/smoke-eval.json
 
   docker:
     runs-on: ubuntu-latest

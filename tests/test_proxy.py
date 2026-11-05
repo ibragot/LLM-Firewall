@@ -180,3 +180,8 @@ def test_upstream_timeout_returns_504(settings: Settings, firewall: Firewall, au
     app.state.upstream = Slow()
     r = chat(TestClient(app), auth, "hello")
     assert r.status_code == 504
+
+
+def test_scan_get_variant(client: TestClient) -> None:
+    r = client.get("/api/scan", params={"text": "What are your store hours?"})
+    assert r.status_code == 200 and r.json()["input"]["action"] == "allow"

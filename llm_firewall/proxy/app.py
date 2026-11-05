@@ -234,6 +234,11 @@ def create_app(settings: Settings | None = None, firewall: Firewall | None = Non
         log.log("demo_scan", prompt_hmac=log.fingerprint(body.text), **_verdict_log_fields(verdict))
         return {"input": verdict.to_dict(), "layers": fw.layers}
 
+    @app.get("/api/scan")
+    async def api_scan_get(text: str, request: Request) -> dict[str, Any]:
+        """GET variant (e.g. /api/scan?text=hello) so a verdict can be shared as a link."""
+        return await api_scan(ScanRequest(text=text), request)
+
     @app.post("/api/demo")
     async def api_demo(body: DemoRequest, request: Request) -> dict[str, Any]:
         """Full round trip, ALWAYS through the mock LLM (never a paid API)."""
