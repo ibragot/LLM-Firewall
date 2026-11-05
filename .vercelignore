@@ -1,0 +1,15 @@
+# Only the runtime (llm_firewall/, config/, models/linear_model.json) is needed on Vercel.
+.venv
+data
+eval
+training
+tests
+notebooks
+docs
+.github
+Dockerfile
+docker-compose.yml
+models/transformer
+models/transformer-smoke
+requirements-ml.txt
+requirements-transformer.txt

@@ -50,3 +50,7 @@ ignore = ["E501"]
 python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
+
+# Vercel's zero-config FastAPI support loads this ASGI app as one serverless function.
+[tool.vercel]
+entrypoint = "llm_firewall.proxy.app:app"
