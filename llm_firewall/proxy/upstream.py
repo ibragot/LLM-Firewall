@@ -34,14 +34,18 @@ class HttpUpstream:
 
     name = "http"
 
-    def __init__(self, base_url: str, api_key: str, timeout_s: float) -> None:
+    def __init__(
+        self, base_url: str, api_key: str, timeout_s: float, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         # One pooled AsyncClient for the app's lifetime: reuses TCP/TLS connections.
+        # `transport` lets tests plug in a fake server (httpx.MockTransport).
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             headers=headers,
             timeout=httpx.Timeout(timeout_s, connect=min(5.0, timeout_s)),
+            transport=transport,
         )
 
     async def chat(self, payload: dict[str, Any]) -> dict[str, Any]:

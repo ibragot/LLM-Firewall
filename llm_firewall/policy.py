@@ -8,14 +8,14 @@ redeploy of the detectors, and makes the policy reviewable in a pull request.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     ALLOW = "allow"
     LOG = "log"
     REDACT = "redact"
