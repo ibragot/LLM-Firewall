@@ -23,7 +23,6 @@ import argparse
 import json
 import math
 import random
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -47,14 +46,19 @@ def set_seed(seed: int) -> None:
 def build_smoke_model(texts: list[str], max_length: int) -> tuple[Any, Any]:
     """Tiny DistilBERT (2 layers, dim 64) + WordPiece tokenizer trained on `texts`. No downloads."""
     from tokenizers import BertWordPieceTokenizer
-    from transformers import DistilBertConfig, DistilBertForSequenceClassification, DistilBertTokenizerFast
+    from transformers import DistilBertConfig, DistilBertForSequenceClassification, PreTrainedTokenizerFast
 
     wp = BertWordPieceTokenizer(lowercase=True)
     wp.train_from_iterator(texts, vocab_size=3000, min_frequency=2)
-    tmp = Path(tempfile.mkdtemp())
-    wp.save_model(str(tmp))
-    tokenizer = DistilBertTokenizerFast(vocab_file=str(tmp / "vocab.txt"), model_max_length=max_length)
-    config = DistilBertConfig(vocab_size=tokenizer.vocab_size, n_layers=2, n_heads=2, dim=64, hidden_dim=128,
+    # Wrap the trained `tokenizers` object directly. (Passing vocab_file= to
+    # DistilBertTokenizerFast is silently ignored by recent transformers versions,
+    # which left a 5-token vocabulary where every word was [UNK].)
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=wp._tokenizer, model_max_length=max_length, unk_token="[UNK]", pad_token="[PAD]",
+        cls_token="[CLS]", sep_token="[SEP]", mask_token="[MASK]")
+    if len(tokenizer) < 100:
+        raise RuntimeError(f"smoke tokenizer vocabulary is only {len(tokenizer)} tokens; tokenizer construction failed")
+    config = DistilBertConfig(vocab_size=len(tokenizer), n_layers=2, n_heads=2, dim=64, hidden_dim=128,
                               max_position_embeddings=max_length)
     config.num_labels = 2
     return tokenizer, DistilBertForSequenceClassification(config)
