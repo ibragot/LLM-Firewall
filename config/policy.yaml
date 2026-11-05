@@ -16,9 +16,11 @@ input:
     heuristics: 1.0     # only used by weighted_mean
     linear: 0.4
     transformer: 0.6    # ignored (and re-normalised away) when the transformer is not loaded
+  # Chosen on the VALIDATION split by `python -m training.tune_policy` (see models/policy_tuning.json):
+  # block = best F1 with validation FPR <= 2%; log = best recall with validation FPR <= 10%.
   thresholds:
-    block: 0.80         # risk >= block -> action_high
-    log: 0.50           # log <= risk < block -> action_medium
+    block: 0.43         # risk >= block -> action_high
+    log: 0.29           # log <= risk < block -> action_medium
   action_high: block
   action_medium: log
   action_low: allow
