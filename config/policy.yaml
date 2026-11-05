@@ -21,8 +21,8 @@ input:
   # block = best F1 with FPR <= 3%; log = best recall with FPR <= 10%.
   # (v1 used validation only and picked block=0.43, which flagged 13% of benign red-team prompts.)
   thresholds:
-    block: 0.59         # risk >= block -> action_high
-    log: 0.37           # log <= risk < block -> action_medium
+    block: 0.61         # risk >= block -> action_high
+    log: 0.36           # log <= risk < block -> action_medium
   action_high: block
   action_medium: log
   action_low: allow

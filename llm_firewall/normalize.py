@@ -56,7 +56,10 @@ LEET: dict[str, str] = {"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "
 _LEET_WORD_RE = re.compile(r"(?<![\w@$])(?=[\w@$]*[A-Za-z])(?=[\w@$]*[013457@$])[A-Za-z013457@$]{3,}(?![\w@$])")
 
 # --- 4. Spaced-out letters: "i g n o r e" / "i.g.n.o.r.e" / "i-g-n-o-r-e" ---------
-_SPACED_RE = re.compile(r"\b(?:[a-z][ .\-_*]){3,}[a-z]\b")
+# Runs of 3+ single letters separated by ONE separator. A double space marks a word
+# boundary, so this must run BEFORE whitespace is collapsed (bug fixed in v2.1:
+# collapsing first turned "r e v e a l  t h e" into one blob "revealthe...").
+_SPACED_RE = re.compile(r"(?<![a-z0-9])(?:[a-z][ .\-_*]){2,}[a-z](?![a-z0-9])")
 
 # --- 5. Encoded payloads -------------------------------------------------------
 _B64_RE = re.compile(r"[A-Za-z0-9+/]{16,}={0,2}")
@@ -218,8 +221,8 @@ def normalize(text: str) -> NormalizationResult:
     if homoglyphs:
         signals.append("homoglyphs_mapped")
 
-    normalized = _WS_RE.sub(" ", clean.lower()).strip()
-    normalized, spaced = _join_spaced_letters(normalized)
+    normalized, spaced = _join_spaced_letters(clean.lower())
+    normalized = _WS_RE.sub(" ", normalized).strip()
     if spaced:
         signals.append("spaced_letters_joined")
 
