@@ -1,0 +1,45 @@
+# Two containers talking over a real network:
+#   firewall  - the proxy, port 8000 on your machine
+#   mock-llm  - the same image serving only its built-in mock LLM, used as the "upstream"
+# This exercises the real HTTP forwarding path (HttpUpstream) instead of the in-process mock.
+#
+#   cp .env.example .env      # optional; the defaults below work without it
+#   docker compose up --build
+#   open http://localhost:8000
+#
+# To use a real provider instead, set in .env:
+#   UPSTREAM_BASE_URL=https://api.groq.com/openai/v1
+#   UPSTREAM_API_KEY=<your key>          (never commit it)
+#   UPSTREAM_MODEL=llama-3.1-8b-instant
+
+services:
+  firewall:
+    build: .
+    image: llm-firewall:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:-http://mock-llm:8000/mock/v1}
+      UPSTREAM_MODEL: ${UPSTREAM_MODEL:-mock-llm-1}
+      FIREWALL_API_KEYS: ${FIREWALL_API_KEYS:-dev-key-change-me}
+      LOG_HASH_SALT: ${LOG_HASH_SALT:-change-me-to-a-long-random-string}
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  mock-llm:
+    image: llm-firewall:latest
+    environment:
+      DEMO_MODE: "false"
+    expose:
+      - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp
