@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from training.data import ROOT, load_train_val, model_text
 
@@ -54,7 +55,8 @@ def build_smoke_model(texts: list[str], max_length: int) -> tuple[Any, Any]:
     wp.save_model(str(tmp))
     tokenizer = DistilBertTokenizerFast(vocab_file=str(tmp / "vocab.txt"), model_max_length=max_length)
     config = DistilBertConfig(vocab_size=tokenizer.vocab_size, n_layers=2, n_heads=2, dim=64, hidden_dim=128,
-                              max_position_embeddings=max_length, num_labels=2)
+                              max_position_embeddings=max_length)
+    config.num_labels = 2
     return tokenizer, DistilBertForSequenceClassification(config)
 
 
@@ -91,7 +93,11 @@ def main() -> None:
     import torch
     from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
     from torch.utils.data import DataLoader
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
+    from transformers import (
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+        get_linear_schedule_with_warmup,
+    )
 
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,8 +106,10 @@ def main() -> None:
     train, val, stats = load_train_val()
     if args.smoke:
         # Small stratified sample so the smoke test runs in about a minute on a laptop CPU.
-        train = train.groupby("label", group_keys=False).apply(lambda g: g.sample(min(len(g), 96), random_state=args.seed))
-        val = val.groupby("label", group_keys=False).apply(lambda g: g.sample(min(len(g), 48), random_state=args.seed))
+        def per_class(df: pd.DataFrame, n: int) -> pd.DataFrame:
+            return pd.concat([g.sample(min(len(g), n), random_state=args.seed) for _, g in df.groupby("label")])
+
+        train, val = per_class(train, 96), per_class(val, 48)
         args.epochs = min(args.epochs, 2)
     elif args.limit:
         train = train.sample(min(args.limit, len(train)), random_state=args.seed)
@@ -127,10 +135,11 @@ def main() -> None:
         enc["labels"] = torch.tensor(labels, dtype=torch.long)
         return dict(enc)
 
-    train_loader = DataLoader(list(zip(x_train, y_train.tolist(), strict=True)), batch_size=args.batch_size,
-                              shuffle=True, collate_fn=collate)
-    val_loader = DataLoader(list(zip(x_val, y_val.tolist(), strict=True)), batch_size=args.batch_size * 2,
-                            collate_fn=collate)
+    # A plain list of (text, label) pairs works as a map-style Dataset (it has __len__ and __getitem__).
+    train_pairs: Any = list(zip(x_train, y_train.tolist(), strict=True))
+    val_pairs: Any = list(zip(x_val, y_val.tolist(), strict=True))
+    train_loader: Any = DataLoader(train_pairs, batch_size=args.batch_size, shuffle=True, collate_fn=collate)
+    val_loader: Any = DataLoader(val_pairs, batch_size=args.batch_size * 2, collate_fn=collate)
 
     # Class imbalance: weight the loss by inverse class frequency, so a mistake on
     # the rarer "attack" class costs ~2x as much as one on a benign prompt.
@@ -176,7 +185,7 @@ def main() -> None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
             scheduler.step()
-            running += float(loss)
+            running += loss.item()
             if step % 20 == 0:
                 print(f"  epoch {epoch} step {step}/{len(train_loader)} loss {running / step:.4f}")
         val_loss, p_val = evaluate(model, val_loader, device)
