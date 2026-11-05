@@ -62,6 +62,9 @@ _SPACED_RE = re.compile(r"\b(?:[a-z][ .\-_*]){3,}[a-z]\b")
 _B64_RE = re.compile(r"[A-Za-z0-9+/]{16,}={0,2}")
 _HEX_RE = re.compile(r"\b(?:[0-9a-fA-F]{2}[ :]?){10,}\b")
 _ROT13_HINT_RE = re.compile(r"\brot[- ]?13\b", re.IGNORECASE)
+# Reversed text ("snoitcurtsni suoiverp erongi") is only decoded when the prompt hints at it,
+# otherwise every prompt would get a meaningless reversed copy.
+_REVERSE_HINT_RE = re.compile(r"\b(?:backwards?|reversed?|reverse order|right to left|mirror(?:ed)?)\b", re.IGNORECASE)
 
 _WS_RE = re.compile(r"\s+")
 
@@ -235,6 +238,9 @@ def normalize(text: str) -> NormalizationResult:
     if _ROT13_HINT_RE.search(clean):
         signals.append("rot13_decoded")
         decoded.append(codecs.decode(clean, "rot_13"))
+    if _REVERSE_HINT_RE.search(clean):
+        signals.append("reversed_decoded")
+        decoded.append(clean[::-1])
 
     # One level of recursion: base64 inside base64, leetspeak inside base64, etc.
     nested: list[str] = []

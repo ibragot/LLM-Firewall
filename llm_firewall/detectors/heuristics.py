@@ -23,12 +23,12 @@ from llm_firewall.normalize import NormalizationResult
 
 # Shorthand fragments reused across rules.
 _GAP = r"[^.\n]{0,40}?"  # up to 40 chars on the same sentence/line
-_VERB_IGNORE = r"(?:ignore|disregard|forget|skip|override|bypass|neglect|abandon|drop|discard|throw away|set aside)"
+_VERB_IGNORE = r"(?:ignore|disregard|forget|skip|override|bypass|neglect|abandon|drop|discard|throw away|set aside|overlook|pay no attention to|stop following|no longer follow)"
 # "previous/system/your" make an override specific to the model's own instructions.
 _PRIOR = r"(?:previous|prior|above|earlier|preceding|initial|original|foregoing|system|developer|your|old|existing|current)"
 _INSTR = (
     r"(?:instructions?|prompts?|rules?|directives?|guidelines?|guardrails?|commands?|constraints?|programming|"
-    r"restrictions?|polic(?:y|ies)|safety (?:filters?|rules|guidelines|measures)|content filters?|training|context|orders)"
+    r"restrictions?|polic(?:y|ies)|safety (?:filters?|rules|guidelines|measures)|content filters?|training|context|orders|directions|setup|configuration)"
 )
 _GENERIC = r"(?:all|any|every|the|these|those|such)"
 
@@ -67,7 +67,7 @@ RULES: list[Rule] = [
     Rule(
         "override_generic",
         "direct_injection",
-        0.5,
+        0.35,
         _r(rf"\b{_VERB_IGNORE}\b{_GAP}\b{_GENERIC}\b{_GAP}\b(?:instructions?|rules|guidelines|restrictions|guardrails|content filters?)\b"),
         "Weaker form: 'ignore all/the rules' without saying whose rules.",
     ),
@@ -77,6 +77,20 @@ RULES: list[Rule] = [
         0.8,
         _r(r"\b(?:forget|ignore|disregard)\s+(?:about\s+)?(?:everything|all of (?:that|this|the above)|what (?:you were|i) told)\b"),
         "'Forget everything' style context reset.",
+    ),
+    Rule(
+        "instructions_void",
+        "direct_injection",
+        0.7,
+        _r(
+            r"\b(?:whatever|everything|anything|all|what)\s+(?:you were|you've been|you have been|i)\s+(?:told|given|instructed|programmed)\b[^.\n]{0,40}"
+            r"\b(?:doesn't|does not|don't|do not|no longer|isn't|is not)\s+(?:apply|matter|count|valid)|"
+            r"\b(?:previous|prior|earlier|old|original|initial)\s+(?:instructions|directives|rules|guidelines|prompt)\s+(?:are|is|were)\s+"
+            r"(?:void|cancell?ed|revoked|invalid|obsolete|outdated|no longer valid|a test)|"
+            r"\b(?:there is|there's|as if there (?:is|was)|pretend there(?:'s| is)) no (?:system (?:message|prompt)|initial prompt|instructions)\b|"
+            r"\b(?:safety|content|security)\s+(?:mode|filters?|checks?|guardrails?)\s+(?:off|disabled|deactivated)\b"
+        ),
+        "Declares prior instructions void / safety switched off.",
     ),
     Rule(
         "new_instructions",
@@ -100,7 +114,8 @@ RULES: list[Rule] = [
             r"\b(?:reveal|show|print|repeat|output|display|tell me|give me|leak|dump|spell out|recite|write out|"
             r"copy|paste|share|expose|what(?:'s| is| are| were))\b[^.\n]{0,40}?\b(?:your|the|this|its|my|initial|original|hidden|secret)\s+"
             r"(?:system\s+(?:prompt|message|instructions?)|initial\s+(?:prompt|instructions?)|hidden\s+(?:prompt|instructions?)|"
-            r"pre-?prompt|developer\s+(?:message|prompt|instructions?)|confidential\s+instructions?|instructions you were given)"
+            r"pre-?prompt|developer\s+(?:message|prompt|instructions?)|confidential\s+instructions?|instructions you were given|"
+            r"setup\s+(?:message|prompt|instructions?)|configuration\s+(?:message|prompt)|hidden\s+text)"
         ),
         "Asks the model to disclose its system prompt.",
     ),
@@ -115,9 +130,20 @@ RULES: list[Rule] = [
         "Classic 'repeat the words above starting with You are' extraction.",
     ),
     Rule(
+        "context_dump",
+        "prompt_extraction",
+        0.6,
+        _r(
+            r"\b(?:print|show|output|repeat|copy|paste|reveal|tell me)\b[^.\n]{0,50}\b(?:before|preceding|prior to|above)\s+(?:my|this|the user'?s?)\s+(?:first\s+)?(?:message|question|input)|"
+            r"\b(?:between|from)\s+the\s+(?:start|beginning)\s+of\s+(?:the|this)\s+conversation\b|"
+            r"\b(?:exact|verbatim|word[- ]for[- ]word|character[- ]by[- ]character)\b[^.\n]{0,40}\b(?:instructions|prompt|setup|configuration|rules)\b"
+        ),
+        "Asks for whatever sits in the context before the user's message.",
+    ),
+    Rule(
         "secrets_request",
         "data_exfiltration",
-        0.45,
+        0.35,
         _r(r"\b(?:reveal|print|show|give|tell|output|leak|list|dump|expose)\b[^.\n]{0,30}\b(?:api[_ -]?keys?|passwords?|credentials|secret keys?|access tokens?|env(?:ironment)? variables|\.env)\b"),
         "Requests secrets or credentials.",
     ),
@@ -136,9 +162,10 @@ RULES: list[Rule] = [
         0.7,
         _r(
             r"\b(?:do anything now|(?:enable|enabled|activate|with|in) developer mode|developer mode (?:enabled|output|activated|on)|"
-            r"jailbroken|jailbreak(?:ed)? (?:mode|prompt|response|version|ai)|"
+            r"jailbroken|jailbreak(?:ed)? (?:mode|response|version)|"
             r"evil (?:confidant|assistant|ai|bot|twin)|opposite mode|unfiltered (?:ai|mode|response|assistant)|"
-            r"uncensored (?:ai|mode|response|assistant|version)|anti-?gpt|better ?dan|maximum mode)\b|"
+            r"uncensored (?:ai|mode|response|assistant|version)|anti-?gpt|better ?dan|maximum mode|unsafe ?gpt|rogue ai|"
+            r"nothing is off[- ]limits|no (?:safe-?search|content filters?))\b|"
             r"\(🔓|🔓\s*jailbreak|\[🔓"
         ),
         "Well-known jailbreak vocabulary.",
@@ -160,7 +187,8 @@ RULES: list[Rule] = [
             r"no longer (?:bound|restricted|an? ai|limited)|not bound|unrestricted|without (?:any )?(?:rules|restrictions|limits|limitations|filters|ethics|morals|censorship)|"
             r"free (?:of|from) (?:all |any )?(?:rules|restrictions|constraints|guidelines|limitations)|freed from|can do anything|"
             r"(?:have|has|with|having) no (?:rules|restrictions|limits|limitations|guidelines|filters|ethics|morals|boundaries|censorship)|"
-            r"amoral|unethical|immoral|unhinged|lawless|broken free|escaped the matrix)"
+            r"amoral|unethical|immoral|unhinged|lawless|broken free|escaped the matrix|rejects? (?:its|your|their|the|all) (?:rules|guidelines|programming|restrictions)|"
+            r"(?:the )?opposite of what (?:a|an) (?:safe|ethical|responsible) (?:ai|assistant) would)"
         ),
         "Asks the model to adopt a persona without its safety rules.",
     ),
@@ -179,7 +207,7 @@ RULES: list[Rule] = [
         "stay_in_character",
         "roleplay_jailbreak",
         0.4,
-        _r(r"\b(?:stay in character|break character|remain in character|two responses|both responses|respond (?:twice|in two ways))\b"),
+        _r(r"\b(?:stay in character|remain in character|never break character|two responses|both responses|respond (?:twice|in two ways))\b"),
         "Persistence tricks that keep a jailbreak persona alive.",
     ),
     Rule(
@@ -241,7 +269,9 @@ RULES: list[Rule] = [
             r"(?:ai|a\.i\.|assistant|llm|chatbot|language model|model|gpt|bot|agent|summari[sz]er)s?\b|"
             r"\bif you are (?:an?|the)\s+(?:ai|llm|language model|assistant|chatbot|bot|agent|gpt)\b|"
             r"\b(?:ai|llm|assistant|agent|bot|model)s?\s+(?:reading|processing|summari[sz]ing|analy[sz]ing|parsing|reviewing) (?:this|these)\b|"
-            r"\bwhen (?:summari[sz]ing|processing|reading|analy[sz]ing) this (?:document|page|email|text|file|review)\b"
+            r"\bwhen (?:summari[sz]ing|processing|reading|analy[sz]ing) this (?:document|page|email|text|file|review)\b|"
+            r"\battention\s*[,:]?\s*(?:ai|llm|assistant|chatbot|language model|gpt|bot|agent)s?\b|"
+            r"\b(?:hey|dear|hi|hello)\s+(?:ai|llm|assistant|chatbot|bot|agent)\s*[,:]\s*(?:stop|ignore|forget|disregard|do not|don't|new|from now on|the user is)"
         ),
         "Text inside data that addresses the AI that will read it.",
     ),
@@ -295,9 +325,24 @@ RULES: list[Rule] = [
             r"(?:忽略|无视|忘记|忽视|無視|忘記|不要理会)[^。\n]{0,20}(?:指令|指示|说明|規則|规则|提示|命令|设定|設定)|"
             r"(?:指令|指示|命令|ルール|規則)[^。\n]{0,15}(?:無視|忘れ)|"
             r"(?:지시|명령|규칙|지침)[^.\n]{0,20}(?:무시|잊어)|"
+            # Vietnamese / Indonesian / Swahili
+            r"(?:bỏ qua|phớt lờ|quên)[^.\n]{0,50}(?:hướng dẫn|chỉ dẫn|quy tắc|lệnh)|"
+            r"\b(?:abaikan|lupakan|acuhkan)\b[^.\n]{0,50}\b(?:instruksi|perintah|aturan|arahan)\b|"
+            r"\b(?:puuza|sahau)\b[^.\n]{0,50}\b(?:maagizo|maelekezo|sheria)\b|"
+            # Greek / Hungarian / Romanian / Czech / Swedish / Finnish
+            r"(?:αγνόησε|αγνοήστε|ξέχνα|ξεχάστε)[^.\n]{0,50}(?:οδηγίες|κανόνες|εντολές)|"
+            r"(?:hagyd figyelmen kívül|felejtsd el|hagyja figyelmen kívül)[^.\n]{0,50}(?:utasítás|szabály)|"
+            r"(?:ignoră|ignorați|uită)[^.\n]{0,50}(?:instrucțiunile|regulile|instrucţiunile)|"
+            r"\b(?:ignoruj|ignorujte|zapomeň)\b[^.\n]{0,50}(?:pokyny|instrukce|pravidla)|"
+            r"\b(?:ignorera|glöm|strunta i)\b[^.\n]{0,50}\b(?:instruktioner|regler)\b|"
+            r"\b(?:ohita|unohda)\b[^.\n]{0,50}(?:ohjeet|säännöt)|"
+            # Persian / Hebrew / Thai
+            r"(?:دستورالعمل|دستورات|قوانین)[^.\n]{0,40}(?:نادیده بگیر|فراموش کن)|"
+            r"(?:התעלם|שכח)[^.\n]{0,50}(?:ההוראות|הוראות|הכללים)|"
+            r"(?:เพิกเฉย|ละเว้น|ลืม|ไม่ต้องสนใจ)[^\n]{0,40}(?:คำสั่ง|คำแนะนำ|กฎ)|"
             # Arabic / Hindi
             r"(?:تجاهل|انس|تجاهلي)[^.\n]{0,50}(?:التعليمات|الأوامر|القواعد|تعليمات)|"
-            r"(?:निर्देशों|नियमों|निर्देश)[^।\n]{0,40}(?:अनदेखा|भूल|नज़रअंदाज़)"
+            r"(?:निर्देशों|नियमों|निर्देश|नियम)[^।\n]{0,40}(?:अनदेखा|भूल|नज़रअंदाज़)"
         ),
         "'Ignore your instructions' in non-English languages.",
     ),
@@ -309,9 +354,25 @@ RULES: list[Rule] = [
             r"\b(?:révèle|montre|affiche|répète)[^.\n]{0,40}(?:prompt système|instructions? (?:initiales|système|cachées))|"
             r"\b(?:revela|muestra|repite|mostra|revele)[^.\n]{0,40}(?:prompt del sistema|instrucciones (?:del sistema|iniciales|ocultas)|prompt do sistema)|"
             r"\b(?:zeige|verrate|wiederhole|gib)[^.\n]{0,40}(?:systemprompt|system-prompt|systemanweisungen|anfangsanweisungen)|"
-            r"(?:系统提示|系統提示|システムプロンプト|시스템 프롬프트)|(?:покажи|раскрой|выведи)[^.\n]{0,40}(?:системн\w* (?:промпт|инструкци))"
+            r"(?:系统提示|系統提示|システムプロンプト|시스템 프롬프트)|(?:покажи|раскрой|выведи)[^.\n]{0,40}(?:системн\w* (?:промпт|инструкци))|"
+            r"(?:逐字|一字不差)[^。\n]{0,20}(?:重复|复述|输出)|"
+            r"(?:répète|repite|wiederhole|ripeti|repita)\b[^.\n]{0,40}(?:avant mon message|antes de mi mensaje|vor meiner nachricht|prima del mio messaggio|mot pour mot|palabra por palabra|wortwörtlich)"
         ),
         "System-prompt extraction in non-English languages.",
+    ),
+    Rule(
+        "multilingual_no_rules",
+        "multilingual",
+        0.7,
+        _r(
+            r"\b(?:sans (?:aucune )?(?:restriction|limite|règle|filtre)s?|plus de règles|sin (?:ninguna )?(?:restricci[oó]n|restricciones|reglas|filtros|l[ií]mites)|"
+            r"ohne (?:jegliche )?(?:einschränkungen|regeln|filter|grenzen)|senza (?:limiti|regole|restrizioni|filtri)|"
+            r"sem (?:restrições|restricoes|regras|filtros|limites)|zonder (?:beperkingen|regels|filters))\b|"
+            r"(?:без (?:ограничений|правил|фильтров|обмежень))|(?:没有任何限制|没有限制|不受任何限制|無制限|制限のない|制限なし)|"
+            r"(?:제한이 없는|제한 없는|아무 제한)|(?:بلا قيود|بدون قيود|دون قيود)|(?:बिना किसी (?:प्रतिबंध|नियम|रोक))|"
+            r"\b(?:tanpa (?:batasan|aturan|filter))\b|(?:không (?:có )?(?:giới hạn|hạn chế|quy tắc))"
+        ),
+        "'An AI without rules/restrictions' in non-English languages.",
     ),
 ]
 
