@@ -42,7 +42,7 @@ from llm_firewall.policy import Action
 from llm_firewall.proxy.auth import authenticate, client_ip
 from llm_firewall.proxy.limits import MaxBodySizeMiddleware
 from llm_firewall.proxy.ratelimit import TokenBucketLimiter
-from llm_firewall.proxy.upstream import HttpUpstream, MockUpstream, Upstream, UpstreamError, mock_completion
+from llm_firewall.proxy.upstream import HttpUpstream, MockUpstream, UpstreamError, mock_completion
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
