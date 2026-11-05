@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
+# Large / generated model artifacts (produced by training scripts)
+models/transformer/
+models/transformer-smoke/
+*.safetensors
+*.bin
+*.pt
+*.joblib
+
+# Local / editor
+.DS_Store
+.idea/
+.vscode/
+.vercel/
+*.log
