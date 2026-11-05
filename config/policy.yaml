@@ -1,0 +1,39 @@
+# LLM-Firewall policy: maps detections to actions.
+# Actions: allow | block | redact | log
+#   allow  - pass through untouched
+#   log    - pass through, but mark the audit-log entry as "flagged" for review
+#   redact - replace the sensitive span with [REDACTED:TYPE] (output side)
+#   block  - refuse the request / withhold the response
+
+input:
+  # How per-layer scores become one risk score in [0, 1]:
+  #   noisy_or      1 - (1 - heuristics) * (1 - ml)       (evidence accumulates)
+  #   max           max(heuristics, ml)                     (any strong layer wins)
+  #   weighted_mean weighted average of all layers
+  # "ml" is the weighted average of the available ML layers (linear, transformer).
+  combination: noisy_or
+  weights:
+    heuristics: 1.0     # only used by weighted_mean
+    linear: 0.4
+    transformer: 0.6    # ignored (and re-normalised away) when the transformer is not loaded
+  thresholds:
+    block: 0.80         # risk >= block -> action_high
+    log: 0.50           # log <= risk < block -> action_medium
+  action_high: block
+  action_medium: log
+  action_low: allow
+  block_message: "Request blocked by LLM-Firewall: the prompt looks like a prompt-injection or jailbreak attempt."
+
+output:
+  actions:
+    email: redact
+    phone: redact
+    credit_card: redact
+    ca_sin: redact
+    api_key: redact
+    private_key: redact
+    canary_leak: block
+    system_prompt_leak: block
+  # Fraction of the system prompt's 6-word sequences found in the answer that counts as a leak.
+  system_prompt_overlap_threshold: 0.3
+  block_message: "Response withheld by LLM-Firewall: it appeared to disclose confidential instructions."
