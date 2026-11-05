@@ -1,0 +1,47 @@
+{
+  "data": {
+    "raw": 2144,
+    "internal_duplicates": 35,
+    "conflicting_labels": 0,
+    "train": 1792,
+    "val": 317
+  },
+  "chosen_C": 2.0,
+  "grid": [
+    {
+      "C": 0.5,
+      "val_average_precision": 0.9712,
+      "val_roc_auc": 0.9768
+    },
+    {
+      "C": 1.0,
+      "val_average_precision": 0.9742,
+      "val_roc_auc": 0.9794
+    },
+    {
+      "C": 2.0,
+      "val_average_precision": 0.9762,
+      "val_roc_auc": 0.9808
+    },
+    {
+      "C": 4.0,
+      "val_average_precision": 0.9758,
+      "val_roc_auc": 0.981
+    },
+    {
+      "C": 8.0,
+      "val_average_precision": 0.9753,
+      "val_roc_auc": 0.9808
+    },
+    {
+      "C": 16.0,
+      "val_average_precision": 0.9754,
+      "val_roc_auc": 0.9808
+    }
+  ],
+  "fit_seconds": 2.5,
+  "val_roc_auc": 0.9808,
+  "val_average_precision": 0.9762,
+  "val_f1_at_0.5": 0.936,
+  "n_features": 50000
+}
